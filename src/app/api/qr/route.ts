@@ -7,7 +7,6 @@ const redirectPage = `${env.APP_URL}/r`;
 
 export async function POST(request: Request) {
   if (request.headers.get('x-api-key') !== env.API_KEY) {
-    console.log(env.API_KEY);
     return Response.json(
       {
         success: false,
