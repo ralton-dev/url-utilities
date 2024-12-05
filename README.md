@@ -30,5 +30,4 @@ That's it! You can now use the Utilities App to create and manage shortened URLs
 
 ## TO DO's
 
-- Add in functionality to generate a QR code for a URL.
 - Swagger documentation
