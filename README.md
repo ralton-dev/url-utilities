@@ -90,7 +90,7 @@ Response includes a base64 `qrCode` data URL (high error-correction, PNG).
 
 ### Docker image
 
-A multi-arch image (`linux/amd64`, `linux/arm64`) is published to GHCR on every `v*` tag:
+A `linux/amd64` image is published to GHCR on every `v*` tag:
 
 ```
 ghcr.io/ralton-dev/url-utilities:v<version>

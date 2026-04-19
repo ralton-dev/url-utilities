@@ -3,4 +3,4 @@ name: url-utilities
 description: URL shortener with QR code generation (Next.js + Postgres)
 type: application
 version: 0.0.1
-appVersion: "0.0.1"
+appVersion: '0.0.1'

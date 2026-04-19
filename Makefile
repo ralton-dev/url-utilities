@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 REGISTRY         ?= ghcr.io/ralton-dev
 IMAGE_NAME       ?= url-utilities
-PLATFORMS        ?= linux/amd64,linux/arm64
+PLATFORMS        ?= linux/amd64
 CHART_DIR        := deploy/helm/url-utilities
 CHART_VALUES     := $(CHART_DIR)/values.yaml
 
@@ -28,9 +28,9 @@ print-tag: ## Print image tag (<version>-<short-sha>)
 .PHONY: bump-version
 bump-version: ## Bump Chart.yaml + values.yaml and create annotated tag (VERSION=x.y.z required)
 	@if [ -z "$(VERSION_ARG)" ]; then echo "Usage: make bump-version VERSION_ARG=1.2.3"; exit 1; fi
-	@sed -i.bak -E 's/^version:.*/version: $(VERSION_ARG)/' $(CHART_DIR)/Chart.yaml
-	@sed -i.bak -E 's/^appVersion:.*/appVersion: "$(VERSION_ARG)"/' $(CHART_DIR)/Chart.yaml
-	@sed -i.bak -E 's|(^  tag:).*|\1 "v$(VERSION_ARG)"|' $(CHART_VALUES)
+	@sed -i.bak -E "s/^version:.*/version: $(VERSION_ARG)/" $(CHART_DIR)/Chart.yaml
+	@sed -i.bak -E "s/^appVersion:.*/appVersion: '$(VERSION_ARG)'/" $(CHART_DIR)/Chart.yaml
+	@sed -i.bak -E "s|(^  tag:).*|\1 'v$(VERSION_ARG)'|" $(CHART_VALUES)
 	@rm -f $(CHART_DIR)/Chart.yaml.bak $(CHART_VALUES).bak
 	@git add $(CHART_DIR)/Chart.yaml $(CHART_VALUES)
 	@git commit -m "chore: release v$(VERSION_ARG)"
