@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/ralton-dev/url-utilities
-  tag: '' # defaults to Chart.appVersion if empty
+  tag: "v0.0.1"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
