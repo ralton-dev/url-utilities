@@ -16,16 +16,14 @@ service:
 ingress:
   enabled: false
   className: ''
-  annotations:
-    {}
+  annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
     - host: short.example.com
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    []
+  tls: []
     # - secretName: url-utilities-tls
     #   hosts:
     #     - short.example.com
