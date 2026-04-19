@@ -2,13 +2,14 @@ import { db } from '@/clients/db'
 import { urls } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 
-export const dynamic = 'force-dynamic' // defaults to force-static
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: Request,
-  { params }: { params: { alias: string } }
+  { params }: { params: Promise<{ alias: string[] }> }
 ) {
-  const { alias } = params
+  const { alias: aliasSegments } = await params
+  const alias = aliasSegments.join('/')
 
   const result = await db
     .select({

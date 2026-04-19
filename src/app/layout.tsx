@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Eco Porter',
-  description: 'Transporting you to your next destination',
+  title: 'URL Utilities',
+  description: 'URL shortener with QR code generation',
 }
 
 export default function RootLayout({
