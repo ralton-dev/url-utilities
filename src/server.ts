@@ -1,25 +1,8 @@
-import Fastify from 'fastify';
-import sensible from '@fastify/sensible';
+import { buildApp } from './app.js';
 import { env } from './env.js';
 import { client } from './clients/db.js';
-import { health } from './routes/health.js';
-import { ready } from './routes/ready.js';
-import { urlRoute } from './routes/url.js';
-import { qrRoute } from './routes/qr.js';
-import { redirect } from './routes/redirect.js';
 
-const app = Fastify({
-  logger: true,
-  trustProxy: true,
-  disableRequestLogging: false,
-});
-
-await app.register(sensible);
-await app.register(health);
-await app.register(ready);
-await app.register(urlRoute);
-await app.register(qrRoute);
-await app.register(redirect);
+const app = await buildApp();
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
