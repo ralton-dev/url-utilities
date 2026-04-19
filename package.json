@@ -6,9 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "format": "prettier --check --ignore-path .gitignore .",
-    "format:fix": "prettier --write --ignore-path .gitignore .",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "drizzle-kit:push": "drizzle-kit push",
     "drizzle-kit:migrate": "drizzle-kit introspect",
     "drizzle-kit:studio": "drizzle-kit studio"

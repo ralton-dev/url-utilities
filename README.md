@@ -28,11 +28,11 @@ npm run dev                # http://localhost:3000
 
 Copy `.env.example` to `.env.local` and set:
 
-| Variable       | Description                                                                          |
-| -------------- | ------------------------------------------------------------------------------------ |
-| `POSTGRES_URL` | Postgres connection string (e.g. `postgres://user:pass@host:5432/db`)                |
-| `API_KEY`      | Shared secret required in the `x-api-key` header for `/api/url` and `/api/qr`        |
-| `APP_URL`      | Public URL of this app (no trailing slash), used to build returned shortened links   |
+| Variable       | Description                                                                        |
+| -------------- | ---------------------------------------------------------------------------------- |
+| `POSTGRES_URL` | Postgres connection string (e.g. `postgres://user:pass@host:5432/db`)              |
+| `API_KEY`      | Shared secret required in the `x-api-key` header for `/api/url` and `/api/qr`      |
+| `APP_URL`      | Public URL of this app (no trailing slash), used to build returned shortened links |
 
 ## Database
 
@@ -133,12 +133,12 @@ Set `APP_URL`, `API_KEY`, `POSTGRES_URL` in project settings and deploy. Run mig
 
 ## Scripts
 
-| Script                         | What it does                              |
-| ------------------------------ | ----------------------------------------- |
-| `npm run dev`                  | Start the Next.js dev server              |
-| `npm run build` / `npm start`  | Production build and serve                |
-| `npm run lint`                 | Next.js ESLint                            |
-| `npm run format` / `format:fix`| Prettier check / write                    |
+| Script                          | What it does                 |
+| ------------------------------- | ---------------------------- |
+| `npm run dev`                   | Start the Next.js dev server |
+| `npm run build` / `npm start`   | Production build and serve   |
+| `npm run lint`                  | Next.js ESLint               |
+| `npm run format` / `format:fix` | Prettier check / write       |
 
 ## License
 
