@@ -1,17 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import QRCode from 'qrcode';
-import { db } from '../clients/db.js';
-import { urls, qrCodes } from '../db/schema.js';
-import { requireApiKey } from '../plugins/auth.js';
-import { env } from '../env.js';
+import { db } from '../../clients/db.js';
+import { urls, qrCodes } from '../../db/schema.js';
+import { env } from '../../env.js';
 import {
   aliasParam,
   adminListQuery,
   adminUpdateBody,
-} from '../validation/admin.js';
-
-const adminOpts = { preHandler: requireApiKey } as const;
+} from '../../validation/admin.js';
+import { adminOpts, findUrlByAlias, notFound } from './shared.js';
 
 type SortKey = 'createdAt' | 'alias' | 'count' | 'url';
 
@@ -48,7 +46,29 @@ async function upsertQr(urlId: number, qrCode: string): Promise<void> {
   }
 }
 
-export const adminRoutes: FastifyPluginAsync = async (app) => {
+async function findQrByUrlId(urlId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ qrCode: qrCodes.qrCode })
+    .from(qrCodes)
+    .where(eq(qrCodes.urlId, urlId))
+    .limit(1);
+  return row?.qrCode ?? null;
+}
+
+type UrlRow = NonNullable<Awaited<ReturnType<typeof findUrlByAlias>>>;
+
+function detailPayload(row: UrlRow, qrCode: string | null) {
+  return {
+    id: row.id,
+    alias: row.alias,
+    url: row.url,
+    count: row.count ?? 0,
+    createdAt: row.createdAt.toISOString(),
+    qrCode,
+  };
+}
+
+export const adminUrlRoutes: FastifyPluginAsync = async (app) => {
   app.get('/api/admin/urls', adminOpts, async (req, reply) => {
     const parsed = adminListQuery.safeParse(req.query);
     if (!parsed.success) {
@@ -108,43 +128,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     adminOpts,
     async (req, reply) => {
       const parsed = aliasParam.safeParse(req.params);
-      if (!parsed.success) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
-      const { alias } = parsed.data;
+      if (!parsed.success) return notFound(reply);
 
-      const [row] = await db
-        .select()
-        .from(urls)
-        .where(eq(urls.alias, alias))
-        .limit(1);
-      if (!row) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
+      const row = await findUrlByAlias(parsed.data.alias);
+      if (!row) return notFound(reply);
 
-      const [qrRow] = await db
-        .select({ qrCode: qrCodes.qrCode })
-        .from(qrCodes)
-        .where(eq(qrCodes.urlId, row.id))
-        .limit(1);
-
-      let qrCode: string | null = qrRow?.qrCode ?? null;
+      let qrCode = await findQrByUrlId(row.id);
       if (!qrCode) {
-        qrCode = await renderQr(alias);
+        qrCode = await renderQr(parsed.data.alias);
         await upsertQr(row.id, qrCode);
       }
 
-      return {
-        success: true,
-        data: {
-          id: row.id,
-          alias: row.alias,
-          url: row.url,
-          count: row.count ?? 0,
-          createdAt: row.createdAt.toISOString(),
-          qrCode,
-        },
-      };
+      return { success: true, data: detailPayload(row, qrCode) };
     }
   );
 
@@ -153,9 +148,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     adminOpts,
     async (req, reply) => {
       const paramParsed = aliasParam.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
+      if (!paramParsed.success) return notFound(reply);
+
       const bodyParsed = adminUpdateBody.safeParse(req.body);
       if (!bodyParsed.success) {
         return reply.code(400).send({
@@ -163,38 +157,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           errors: bodyParsed.error.flatten().fieldErrors,
         });
       }
-      const { alias } = paramParsed.data;
 
-      const [row] = await db
-        .select()
-        .from(urls)
-        .where(eq(urls.alias, alias))
-        .limit(1);
-      if (!row) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
+      const row = await findUrlByAlias(paramParsed.data.alias);
+      if (!row) return notFound(reply);
 
       await db
         .update(urls)
         .set({ url: bodyParsed.data.url })
-        .where(eq(urls.alias, alias));
+        .where(eq(urls.id, row.id));
 
-      const [qrRow] = await db
-        .select({ qrCode: qrCodes.qrCode })
-        .from(qrCodes)
-        .where(eq(qrCodes.urlId, row.id))
-        .limit(1);
+      const qrCode = await findQrByUrlId(row.id);
 
       return {
         success: true,
-        data: {
-          id: row.id,
-          alias: row.alias,
-          url: bodyParsed.data.url,
-          count: row.count ?? 0,
-          createdAt: row.createdAt.toISOString(),
-          qrCode: qrRow?.qrCode ?? null,
-        },
+        data: detailPayload({ ...row, url: bodyParsed.data.url }, qrCode),
       };
     }
   );
@@ -204,19 +180,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     adminOpts,
     async (req, reply) => {
       const parsed = aliasParam.safeParse(req.params);
-      if (!parsed.success) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
-      const { alias } = parsed.data;
+      if (!parsed.success) return notFound(reply);
 
-      const [row] = await db
-        .select({ id: urls.id })
-        .from(urls)
-        .where(eq(urls.alias, alias))
-        .limit(1);
-      if (!row) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
+      const row = await findUrlByAlias(parsed.data.alias);
+      if (!row) return notFound(reply);
 
       await db.transaction(async (tx) => {
         await tx.delete(qrCodes).where(eq(qrCodes.urlId, row.id));
@@ -232,58 +199,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     adminOpts,
     async (req, reply) => {
       const parsed = aliasParam.safeParse(req.params);
-      if (!parsed.success) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
-      const { alias } = parsed.data;
+      if (!parsed.success) return notFound(reply);
 
-      const [row] = await db
-        .select({ id: urls.id })
-        .from(urls)
-        .where(eq(urls.alias, alias))
-        .limit(1);
-      if (!row) {
-        return reply.code(404).send({ success: false, errors: ['Not found'] });
-      }
+      const row = await findUrlByAlias(parsed.data.alias);
+      if (!row) return notFound(reply);
 
-      const qrCode = await renderQr(alias);
+      const qrCode = await renderQr(parsed.data.alias);
       await upsertQr(row.id, qrCode);
 
       return { success: true, data: { qrCode } };
     }
   );
-
-  app.get('/api/admin/stats', adminOpts, async () => {
-    const [agg] = await db
-      .select({
-        totalUrls: sql<number>`count(*)::int`,
-        totalClicks: sql<number>`coalesce(sum(${urls.count}), 0)::int`,
-      })
-      .from(urls);
-
-    const topRows = await db
-      .select({
-        alias: urls.alias,
-        url: urls.url,
-        count: urls.count,
-        createdAt: urls.createdAt,
-      })
-      .from(urls)
-      .orderBy(desc(urls.count), asc(urls.id))
-      .limit(10);
-
-    return {
-      success: true,
-      data: {
-        totalUrls: agg.totalUrls,
-        totalClicks: agg.totalClicks,
-        topUrls: topRows.map((r) => ({
-          alias: r.alias,
-          url: r.url,
-          count: r.count ?? 0,
-          createdAt: r.createdAt.toISOString(),
-        })),
-      },
-    };
-  });
 };

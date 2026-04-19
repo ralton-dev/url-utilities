@@ -5,7 +5,7 @@ import { ready } from './routes/ready.js';
 import { urlRoute } from './routes/url.js';
 import { qrRoute } from './routes/qr.js';
 import { redirect } from './routes/redirect.js';
-import { adminRoutes } from './routes/admin.js';
+import { adminRoutes } from './routes/admin/index.js';
 
 export type BuildAppOptions = {
   logger?: boolean;
