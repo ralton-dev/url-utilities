@@ -265,6 +265,28 @@ make helm-install REPO=prod
 
 Set `APP_URL`, `API_KEY`, `POSTGRES_URL` in project settings and deploy. Run migrations separately (`node scripts/migrate.mjs`) against the Postgres instance, or use your platform's migration hook.
 
+## Releasing
+
+Versions are kept in lockstep across `package.json`, the Helm chart (`Chart.yaml` `version` + `appVersion`), and the default image tag in `deploy/helm/url-utilities/values.yaml`. The `make bump-version` target edits all three, creates a commit, and creates an annotated tag.
+
+```bash
+# 1. bump chart + appVersion + values image.tag, commit, tag
+make bump-version VERSION_ARG=2.3.0
+
+# 2. push — this triggers .github/workflows/release.yml
+git push origin main --tags
+```
+
+The Release workflow builds `ghcr.io/ralton-dev/url-utilities:v2.3.0` (and a `v2.3.0-<short-sha>` variant) on push of a `v*` tag.
+
+Follow conventional SemVer:
+
+- **patch** — bug fixes, backwards-compatible
+- **minor** — new endpoints / additive columns / new chart values
+- **major** — breaking API changes, incompatible schema changes, or Helm values renames
+
+Run `make help` for the full list of Makefile targets (`print-version`, `helm-lint`, `helm-install`, etc.).
+
 ## Scripts
 
 | Script                          | What it does                                                    |
