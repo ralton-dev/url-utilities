@@ -36,11 +36,7 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
-      - name: Next build
-        env:
-          APP_URL: http://localhost:3000
-          API_KEY: ci-placeholder
-          POSTGRES_URL: postgres://ci:ci@localhost/ci
+      - name: Build
         run: npm run build
 
   build-image:

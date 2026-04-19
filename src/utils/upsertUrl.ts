@@ -1,6 +1,6 @@
-import { urls } from '@/db/schema';
+import { urls } from '../db/schema.js';
 import { customAlphabet } from 'nanoid';
-import { db } from '@/clients/db';
+import { db } from '../clients/db.js';
 import { eq } from 'drizzle-orm';
 
 const alphabet =
@@ -16,7 +16,6 @@ export const upsertUrl = async (url: string): Promise<string> => {
     .where(eq(urls.url, url))
     .limit(1);
 
-  // If the url already exists, return the existing alias
   if (result.length > 0 && result[0].alias) {
     const { alias } = result[0];
     return alias;
