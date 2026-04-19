@@ -2,15 +2,20 @@
 
 A lightweight, headless URL shortener with QR code generation, built on Fastify, Drizzle ORM, and Postgres. Ships as a minimal container — an operator UI is available as a separate microservice that talks to the admin API below.
 
-### Public endpoints
+### Public (unauthenticated)
+
+- `GET /r/:alias` — 301 redirect to the original URL and increment the visit counter
+
+### Authenticated (`x-api-key` required)
+
+Everything under `/api/*` — the write endpoints and all admin routes share the same shared secret.
+
+**Write endpoints**
 
 - `POST /api/url` — shorten a URL and return an alias
 - `POST /api/qr` — shorten a URL and return a data-URL QR code
-- `GET /r/:alias` — redirect to the original URL and increment the visit counter
 
-### Admin endpoints
-
-All under `/api/admin/*`, intended for an operator UI (separate repo).
+**Admin endpoints** — intended for an operator UI (separate repo)
 
 - `GET    /api/admin/urls` — list, search, sort, paginate
 - `GET    /api/admin/urls/:alias` — detail (lazy-populates QR on first read)
