@@ -5,6 +5,7 @@ import { ready } from './routes/ready.js';
 import { urlRoute } from './routes/url.js';
 import { qrRoute } from './routes/qr.js';
 import { redirect } from './routes/redirect.js';
+import { adminRoutes } from './routes/admin/index.js';
 
 export type BuildAppOptions = {
   logger?: boolean;
@@ -23,6 +24,7 @@ export async function buildApp(
   await app.register(ready);
   await app.register(urlRoute);
   await app.register(qrRoute);
+  await app.register(adminRoutes);
   await app.register(redirect);
 
   return app;

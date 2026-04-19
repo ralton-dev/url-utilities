@@ -1,10 +1,28 @@
 # URL Utilities
 
-A lightweight URL shortener with QR code generation, built on Next.js 14 (App Router), Drizzle ORM, and Postgres.
+A lightweight, headless URL shortener with QR code generation, built on Fastify, Drizzle ORM, and Postgres. Ships as a minimal container — an operator UI is available as a separate microservice that talks to the admin API below.
+
+### Public (unauthenticated)
+
+- `GET /r/:alias` — 301 redirect to the original URL and increment the visit counter
+
+### Authenticated (`x-api-key` required)
+
+Everything under `/api/*` — the write endpoints and all admin routes share the same shared secret.
+
+**Write endpoints**
 
 - `POST /api/url` — shorten a URL and return an alias
 - `POST /api/qr` — shorten a URL and return a data-URL QR code
-- `GET /r/:alias` — redirect to the original URL and increment the visit counter
+
+**Admin endpoints** — intended for an operator UI (separate repo)
+
+- `GET    /api/admin/urls` — list, search, sort, paginate
+- `GET    /api/admin/urls/:alias` — detail (lazy-populates QR on first read)
+- `PATCH  /api/admin/urls/:alias` — update the destination URL
+- `DELETE /api/admin/urls/:alias` — remove the URL and its QR row
+- `POST   /api/admin/urls/:alias/qr/regenerate` — re-render and persist the QR
+- `GET    /api/admin/stats` — totals + top 10 by click count
 
 ## Requirements
 
@@ -28,11 +46,11 @@ npm run dev                # http://localhost:3000
 
 Copy `.env.example` to `.env.local` and set:
 
-| Variable       | Description                                                                        |
-| -------------- | ---------------------------------------------------------------------------------- |
-| `POSTGRES_URL` | Postgres connection string (e.g. `postgres://user:pass@host:5432/db`)              |
-| `API_KEY`      | Shared secret required in the `x-api-key` header for `/api/url` and `/api/qr`      |
-| `APP_URL`      | Public URL of this app (no trailing slash), used to build returned shortened links |
+| Variable       | Description                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_URL` | Postgres connection string (e.g. `postgres://user:pass@host:5432/db`)                                     |
+| `API_KEY`      | Shared secret required in the `x-api-key` header for `/api/url`, `/api/qr`, and all `/api/admin/*` routes |
+| `APP_URL`      | Public URL of this app (no trailing slash), used to build returned shortened links                        |
 
 ## Database
 
@@ -54,7 +72,7 @@ NODE_EXTRA_CA_CERTS=./.supabase/prod-ca-2021.crt npm run drizzle-kit:push
 
 ## API
 
-All write endpoints require the `x-api-key` header to match `API_KEY`.
+All write endpoints and all `/api/admin/*` endpoints require the `x-api-key` header to match `API_KEY`. Failure returns `401 { success: false, errors: ["Unauthorized"] }`.
 
 ### Shorten a URL
 
@@ -85,6 +103,122 @@ Response includes a base64 `qrCode` data URL (high error-correction, PNG).
 ### Follow a short link
 
 `GET /r/:alias` → 301 redirect to the original URL. Each hit increments `count` in the database.
+
+### Admin API
+
+Intended for an operator UI. All routes return `{ "success": true, "data": ... }` on success and `{ "success": false, "errors": [...] | {field: [...]} }` on failure. Aliases are 10-char alphanumeric (`[0-9A-Za-z]{10}`).
+
+#### `GET /api/admin/urls`
+
+List, search, sort, paginate.
+
+Query params (all optional):
+
+| Param      | Type    | Default      | Notes                                                                          |
+| ---------- | ------- | ------------ | ------------------------------------------------------------------------------ |
+| `q`        | string  | —            | ILIKE match against both `alias` and `url`                                     |
+| `page`     | integer | `1`          | 1-indexed                                                                      |
+| `pageSize` | integer | `20`         | Capped at 100                                                                  |
+| `sort`     | enum    | `-createdAt` | `createdAt`, `-createdAt`, `alias`, `-alias`, `count`, `-count`, `url`, `-url` |
+| `minCount` | integer | —            | Inclusive lower bound on `count`                                               |
+| `maxCount` | integer | —            | Inclusive upper bound on `count`                                               |
+
+```bash
+curl -H "x-api-key: $API_KEY" \
+  "$APP_URL/api/admin/urls?q=example&sort=-count&page=1&pageSize=20"
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 42,
+        "alias": "aZ9xK2pQ0b",
+        "url": "https://example.com/path",
+        "count": 137,
+        "createdAt": "2026-04-19T10:15:30.000Z"
+      }
+    ],
+    "total": 421,
+    "page": 1,
+    "pageSize": 20
+  }
+}
+```
+
+List items do not include `qrCode` (too bulky); fetch detail for that.
+
+#### `GET /api/admin/urls/:alias`
+
+Detail view. First read lazily renders and persists the QR; subsequent reads return the stored one.
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "alias": "aZ9xK2pQ0b",
+    "url": "https://example.com/path",
+    "count": 137,
+    "createdAt": "2026-04-19T10:15:30.000Z",
+    "qrCode": "data:image/png;base64,iVBORw0KGgo..."
+  }
+}
+```
+
+Returns `404 { success: false, errors: ["Not found"] }` for missing or malformed aliases.
+
+#### `PATCH /api/admin/urls/:alias`
+
+Update the destination URL. Alias renames are intentionally not supported — that would invalidate every existing short link.
+
+```bash
+curl -X PATCH -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"url": "https://new-destination.example.com"}' \
+  "$APP_URL/api/admin/urls/aZ9xK2pQ0b"
+```
+
+Returns the updated detail payload. Returns `400` on validation failure, `404` if the alias doesn't exist.
+
+#### `DELETE /api/admin/urls/:alias`
+
+Removes the URL and any associated QR row in a single transaction. Returns `204` with empty body, or `404` if missing.
+
+#### `POST /api/admin/urls/:alias/qr/regenerate`
+
+Re-renders the QR and upserts it.
+
+```json
+{ "success": true, "data": { "qrCode": "data:image/png;base64,..." } }
+```
+
+#### `GET /api/admin/stats`
+
+Dashboard aggregates.
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalUrls": 421,
+    "totalClicks": 15234,
+    "topUrls": [
+      {
+        "alias": "aZ9xK2pQ0b",
+        "url": "https://...",
+        "count": 2111,
+        "createdAt": "2026-03-15T09:02:11.000Z"
+      }
+    ]
+  }
+}
+```
+
+`topUrls` is the top 10 by click count.
 
 ## Deployment
 
@@ -133,12 +267,13 @@ Set `APP_URL`, `API_KEY`, `POSTGRES_URL` in project settings and deploy. Run mig
 
 ## Scripts
 
-| Script                          | What it does                 |
-| ------------------------------- | ---------------------------- |
-| `npm run dev`                   | Start the Next.js dev server |
-| `npm run build` / `npm start`   | Production build and serve   |
-| `npm run lint`                  | Next.js ESLint               |
-| `npm run format` / `format:fix` | Prettier check / write       |
+| Script                          | What it does                                                    |
+| ------------------------------- | --------------------------------------------------------------- |
+| `npm run dev`                   | Start the Fastify server with tsx watch mode                    |
+| `npm run build` / `npm start`   | Compile to `dist/` and run with Node                            |
+| `npm test`                      | Run the vitest e2e suite (spins up Postgres via testcontainers) |
+| `npm run lint`                  | ESLint (flat config)                                            |
+| `npm run format` / `format:fix` | Prettier check / write                                          |
 
 ## License
 
