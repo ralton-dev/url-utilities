@@ -88,7 +88,48 @@ Response includes a base64 `qrCode` data URL (high error-correction, PNG).
 
 ## Deployment
 
-Any platform that runs Next.js works. Vercel is the path of least resistance — set the three environment variables in the project settings and deploy. The app needs outbound access to your Postgres host.
+### Docker image
+
+A multi-arch image (`linux/amd64`, `linux/arm64`) is published to GHCR on every `v*` tag:
+
+```
+ghcr.io/ralton-dev/url-utilities:v<version>
+ghcr.io/ralton-dev/url-utilities:v<version>-<short-sha>
+```
+
+Run locally:
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e APP_URL=http://localhost:3000 \
+  -e API_KEY=change-me \
+  -e POSTGRES_URL=postgres://user:pass@host:5432/db \
+  ghcr.io/ralton-dev/url-utilities:v0.1.0
+```
+
+### Kubernetes (Helm)
+
+The repo ships a Helm chart at [`deploy/helm/url-utilities/`](./deploy/helm/url-utilities) with:
+
+- Non-root pod security context, read-only root FS
+- Liveness (`/api/health`) and readiness (`/api/ready`, DB-backed) probes
+- Pre-install/pre-upgrade Job that applies Drizzle SQL migrations
+- Optional Ingress and HPA
+- Two secret modes: inline plaintext for bootstrap or `existingSecret` for sealed-secrets
+
+See [`deploy/DEPLOY.md`](./deploy/DEPLOY.md) for the full first-deploy walkthrough and [`deploy/SECRETS.md`](./deploy/SECRETS.md) for secret-handling options.
+
+Quick install:
+
+```bash
+cp deploy/helm/url-utilities/values.yaml deploy/helm/url-utilities/values-prod.yaml
+# edit values-prod.yaml (image.tag, config.APP_URL, secrets.*, ingress)
+make helm-install REPO=prod
+```
+
+### Vercel (alternative)
+
+Set `APP_URL`, `API_KEY`, `POSTGRES_URL` in project settings and deploy. Run migrations separately (`node scripts/migrate.mjs`) against the Postgres instance, or use your platform's migration hook.
 
 ## Scripts
 

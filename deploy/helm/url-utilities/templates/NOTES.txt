@@ -1,0 +1,21 @@
+{{- $fullname := include "url-utilities.fullname" . -}}
+url-utilities was deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+Image:   {{ include "url-utilities.image" . }}
+APP_URL: {{ .Values.config.APP_URL }}
+
+To check status:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ $fullname }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress enabled. Once DNS and TLS are ready, browse to:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else }}
+
+Ingress is disabled. Port-forward for local access:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ $fullname }} 3000:{{ .Values.service.port }}
+  curl http://localhost:3000/api/health
+{{- end }}

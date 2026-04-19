@@ -37,3 +37,7 @@ next-env.d.ts
 
 # ide
 .idea
+
+# helm per-instance values (may contain secrets)
+deploy/helm/*/values-*.yaml
+deploy/helm/*/sealed/

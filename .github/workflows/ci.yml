@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier check
+        run: npm run format
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Next build
+        env:
+          APP_URL: http://localhost:3000
+          API_KEY: ci-placeholder
+          POSTGRES_URL: postgres://ci:ci@localhost/ci
+        run: npm run build
+
+  build-image:
+    name: Build image (verification, no push)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: lint-and-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (amd64, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: url-utilities:ci
+
+      - name: Smoke-start container
+        run: |
+          docker run --rm -d --name url-utilities-ci \
+            -e APP_URL=http://localhost:3000 \
+            -e API_KEY=ci \
+            -e POSTGRES_URL=postgres://ci:ci@localhost/ci \
+            -p 3000:3000 \
+            url-utilities:ci
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "health endpoint responded"
+              docker stop url-utilities-ci
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "health endpoint never responded"
+          docker logs url-utilities-ci
+          docker stop url-utilities-ci
+          exit 1
